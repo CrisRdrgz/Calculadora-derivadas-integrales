@@ -2,6 +2,8 @@ package org.example;
 
 import alice.tuprolog.Prolog;
 import alice.tuprolog.SolveInfo;
+import alice.tuprolog.Struct;
+import alice.tuprolog.Term;
 import alice.tuprolog.Theory;
 
 import java.io.InputStream;
@@ -16,9 +18,14 @@ public class Connection {
         }
     }
 
-    public String consultar(String predicado, String expresion) throws Exception {
-        SolveInfo info = engine.solve(predicado + "(x, " + expresion + ", R).");
-        return info.isSuccess() ? info.getTerm("R").toString()
-                : "Sin solución para esa expresión";
+    /** Arma la consulta "operacion(A, B, R)." y devuelve el valor de R calculado por Prolog. */
+    public String consultar(String operacion, String a, String b) throws Exception {
+        SolveInfo info = engine.solve(operacion + "(" + a + ", " + b + ", R).");
+        if (!info.isSuccess()) {
+            return "Sin solución para esa operación";
+        }
+        Term r = info.getTerm("R");
+        // Si Prolog devuelve un átomo (mensaje de error) se toma su texto sin comillas
+        return r.isAtom() ? ((Struct) r).getName() : r.toString();
     }
 }

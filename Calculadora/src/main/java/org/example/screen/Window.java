@@ -13,26 +13,24 @@ import java.awt.datatransfer.StringSelection;
 /** Ventana principal: arma los componentes y conecta la interfaz con el motor Prolog. */
 public class Window extends JFrame {
 
-    private static final String[] EJEMPLOS = {
-            "x", "log(x)", "3*x^2", "2^x"
-    };
-
-    private final TextField txtEntrada = new TextField("Ej: 5*x^2");
+    private final TextField txtA = new TextField("Ej: 5");
+    private final TextField txtB = new TextField("Ej: 3");
     private final PanelResult panelResultado = new PanelResult();
     private final JLabel lblEstado = new JLabel(" ");
 
     public Window(Connection motor) {
-        super("Cálculo simbólico en Prolog");
+        super("Calculadora básica en Prolog");
 
-        // Enter en el campo = derivar
-        txtEntrada.addActionListener(e -> ejecutar(motor, "d"));
+        // Enter en el campo B = sumar
+        txtB.addActionListener(e -> ejecutar(motor, "suma", "Suma"));
 
         JPanel contenido = new JPanel();
         contenido.setLayout(new BoxLayout(contenido, BoxLayout.Y_AXIS));
         contenido.setOpaque(false);
-        agregar(contenido, etiqueta("Función f(x)"), 6);
-        agregar(contenido, txtEntrada, 8);
-        agregar(contenido, crearEjemplos(), 18);
+        agregar(contenido, etiqueta("Número A"), 6);
+        agregar(contenido, txtA, 12);
+        agregar(contenido, etiqueta("Número B"), 6);
+        agregar(contenido, txtB, 18);
         agregar(contenido, crearBotones(motor), 22);
         agregar(contenido, panelResultado, 10);
         agregar(contenido, crearPie(), 0);
@@ -44,7 +42,7 @@ public class Window extends JFrame {
         raiz.add(contenido, BorderLayout.CENTER);
 
         setContentPane(raiz);
-        setMinimumSize(new Dimension(660, 520));
+        setMinimumSize(new Dimension(660, 560));
         pack();
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
@@ -55,11 +53,11 @@ public class Window extends JFrame {
     // ------------------------------------------------------------------
 
     private JPanel crearEncabezado() {
-        JLabel titulo = new JLabel("Cálculo simbólico");
+        JLabel titulo = new JLabel("Calculadora básica");
         titulo.setFont(Theme.sans(Font.BOLD, 24));
         titulo.setForeground(Theme.TEXT);
 
-        JLabel subtitulo = new JLabel("Derivadas e integrales resueltas con reglas en Prolog");
+        JLabel subtitulo = new JLabel("Suma, resta, multiplicación y división resueltas con reglas en Prolog");
         subtitulo.setFont(Theme.sans(Font.PLAIN, 13));
         subtitulo.setForeground(Theme.MUTED);
 
@@ -72,37 +70,21 @@ public class Window extends JFrame {
         return p;
     }
 
-    private JPanel crearEjemplos() {
-        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+    private JPanel crearBotones(Connection motor) {
+        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         p.setOpaque(false);
-
-        JLabel lbl = new JLabel("Ejemplos:");
-        lbl.setForeground(Theme.MUTED);
-        lbl.setFont(Theme.sans(Font.PLAIN, 12));
-        p.add(lbl);
-
-        for (String ej : EJEMPLOS) {
-            Buttons chip = new Buttons(ej, Theme.CARD, Theme.TEXT, 12, 6, 11);
-            chip.addActionListener(e -> {
-                txtEntrada.setText(ej);
-                txtEntrada.requestFocusInWindow();
-            });
-            p.add(chip);
-        }
+        p.add(crearBoton("+ Sumar", Theme.BLUE, motor, "suma", "Suma"));
+        p.add(crearBoton("− Restar", Theme.GREEN, motor, "resta", "Resta"));
+        p.add(crearBoton("× Multiplicar", Theme.AMBER, motor, "multiplicacion", "Multiplicación"));
+        p.add(crearBoton("÷ Dividir", Theme.RED, motor, "division", "División"));
         return p;
     }
 
-    private JPanel crearBotones(Connection motor) {
-        Buttons btnDerivar = new Buttons("Derivar", Theme.BLUE, Theme.BG, 26, 11, 14);
-        Buttons btnIntegrar = new Buttons("Integrar", Theme.GREEN, Theme.BG, 26, 11, 14);
-        btnDerivar.addActionListener(e -> ejecutar(motor, "d"));
-        btnIntegrar.addActionListener(e -> ejecutar(motor, "s"));
-
-        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        p.setOpaque(false);
-        p.add(btnDerivar);
-        p.add(btnIntegrar);
-        return p;
+    private Buttons crearBoton(String texto, Color color, Connection motor,
+                               String operacion, String nombre) {
+        Buttons b = new Buttons(texto, color, Theme.BG, 20, 11, 14);
+        b.addActionListener(e -> ejecutar(motor, operacion, nombre));
+        return b;
     }
 
     private JPanel crearPie() {
@@ -123,18 +105,25 @@ public class Window extends JFrame {
     //  Lógica
     // ------------------------------------------------------------------
 
-    private void ejecutar(Connection motor, String pred) {
-        String entrada = txtEntrada.getText().trim();
-        String nombre = pred.equals("d") ? "Derivada" : "Integral";
-        panelResultado.setTitulo(nombre + " de f(x)");
+    private void ejecutar(Connection motor, String operacion, String nombre) {
+        panelResultado.setTitulo(nombre);
 
-        if (entrada.isEmpty()) {
-            mostrar("", "Escribí una función primero.", Theme.AMBER);
+        if (txtA.getText().trim().isEmpty() || txtB.getText().trim().isEmpty()) {
+            mostrar("", "Escribí los dos números primero.", Theme.AMBER);
+            return;
+        }
+        // Validar en Java que ambas entradas sean números ANTES de armar la consulta
+        String a = aNumeroProlog(txtA.getText());
+        String b = aNumeroProlog(txtB.getText());
+        if (a == null || b == null) {
+            mostrar("", "Ingresá dos números válidos (ej: 5, -3, 2.5).", Theme.AMBER);
             return;
         }
         try {
-            String resultado = motor.consultar(pred, entrada);
-            if (resultado.startsWith("Sin solución")) {
+            String resultado = motor.consultar(operacion, a, b);
+            if (resultado.startsWith("Error")) {
+                mostrar("", resultado, Theme.RED);
+            } else if (resultado.startsWith("Sin solución")) {
                 mostrar("", resultado, Theme.AMBER);
             } else {
                 mostrar(resultado, "Listo", Theme.GREEN);
@@ -142,6 +131,27 @@ public class Window extends JFrame {
         } catch (Exception ex) {
             mostrar("", "Expresión inválida: " + ex.getMessage(), Theme.RED);
         }
+    }
+
+    /**
+     * Convierte el texto a un número escrito en sintaxis Prolog,
+     * o devuelve null si no es un número válido.
+     */
+    private static String aNumeroProlog(String texto) {
+        double valor;
+        try {
+            valor = Double.parseDouble(texto.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+        if (Double.isNaN(valor) || Double.isInfinite(valor)) {
+            return null;
+        }
+        // Los enteros se envían sin ".0" para que 5 + 3 muestre 8 y no 8.0
+        if (valor == Math.rint(valor) && Math.abs(valor) < 1e15) {
+            return String.valueOf((long) valor);
+        }
+        return String.valueOf(valor);
     }
 
     private void mostrar(String resultado, String estado, Color colorEstado) {
